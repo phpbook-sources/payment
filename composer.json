@@ -1,7 +1,7 @@
 {
     "name": "phpbook/payment",
     "type": "library",
-    "description": "PHP Payment Library",
+    "description": "PHP Payment Library For MundiPAGG e PagarMe",
     "keywords": ["php","payment", "gateway", "fast", "lightweight"],
     "homepage": "https://github.com/phpbook-sources/payment",
     "license": "MIT",
@@ -13,7 +13,7 @@
         }
     ],
     "require": {
-        "php": ">=5.3.0",
+        "php": ">=7.1.0",
         "pagarme/pagarme-php": "*",
         "mundipagg/mundiapi": "*"
     },
