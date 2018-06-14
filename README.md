@@ -160,7 +160,7 @@ if ($customer) {
 /*************************************************
  * 
  *  Create Charge
- *  You cannot update card here, only create
+ *  You cannot update charge here, only create
  *
  * ***********************************************/
 
