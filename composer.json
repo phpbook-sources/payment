@@ -1,0 +1,25 @@
+{
+    "name": "phpbook/payment",
+    "type": "library",
+    "description": "PHP Payment Library",
+    "keywords": ["php","payment", "gateway", "fast", "lightweight"],
+    "homepage": "https://github.com/phpbook-sources/payment",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "PHPBook",
+            "email": "phpbook@programmer.net",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": ">=5.3.0",
+        "pagarme/pagarme-php": "*",
+        "mundipagg/mundiapi": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "PHPBook\\Payment\\": "library/"
+        }
+    }
+}
