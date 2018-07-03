@@ -21,22 +21,22 @@ class PagarMe extends Adapter  {
 
         switch($gatewayStatus) {
 
-            case \PagarMe\Sdk\Transaction\AbstractTransaction::PAID:
+            case 'paid':
                    return \PHPBook\Payment\Charge::$STATUS_COMPLETE;
                 break;
 
-            case \PagarMe\Sdk\Transaction\AbstractTransaction::PROCESSING:
-            case \PagarMe\Sdk\Transaction\AbstractTransaction::AUTHORIZED:
-            case \PagarMe\Sdk\Transaction\AbstractTransaction::WAITING_PAYMENT:
-            case \PagarMe\Sdk\Transaction\AbstractTransaction::PENDING_REFUND:
+            case 'processing':
+            case 'authorized':
+            case 'waiting_payment':
+            case 'pending_refund':
                     return \PHPBook\Payment\Charge::$STATUS_WAITING;
                 break;
 
-            case \PagarMe\Sdk\Transaction\AbstractTransaction::REFUSED:
+            case 'refused':
                     return \PHPBook\Payment\Charge::$STATUS_DENY;
                 break;
 
-            case \PagarMe\Sdk\Transaction\AbstractTransaction::REFUNDED:
+            case 'refunded':
                    return \PHPBook\Payment\Charge::$STATUS_REFUNDED;
                 break;
 
@@ -50,29 +50,60 @@ class PagarMe extends Adapter  {
 
     public function createCustomer(\PHPBook\Payment\Customer $customer) {
 
-        $pagarMe = new \PagarMe\Sdk\PagarMe($this->getKey());
+        $post = json_encode([
+            'api_key' => $this->getKey(),
+            'external_id' => null,
+            'name' => $customer->getName(),
+            'type' => 'individual',
+            'country' => 'BR',
+            'address' => [
+                'street' => $customer->getAddressStreet(),
+                'street_number' => $customer->getAddressNumber(),
+                'neighborhood' => $customer->getAddressNeighborhood(),
+                'zipcode' => $customer->getAddressZipCode(),
+                'city' => $customer->getAddressCity(),
+                'state' => $customer->getAddressState(),
+                'country' => $customer->getAddressCountry()
+            ],
+            'email' => $customer->getEmail(),
+            'document_type' => 'cpf',
+            'document_number' => $customer->getIdentity(),
+            'phone' => ['ddd' => $customer->getPhoneLocal(), 'number' => $customer->getPhone()]
+        ]);
 
-        $create = $pagarMe->customer()->create(
-            $customer->getName(), 
-            $customer->getEmail(), 
-            $customer->getIdentity(), 
-            new \PagarMe\Sdk\Customer\Address([
-                    'street' => $customer->getAddressStreet(),
-                    'streetNumber' => $customer->getAddressNumber(),
-                    'neighborhood' => $customer->getAddressNeighborhood(),
-                    'zipcode' => $customer->getAddressZipCode(),
-                    'city' => $customer->getAddressCity(),
-                    'state' => $customer->getAddressState(),
-                    'country' => $customer->getAddressCountry(),
-                ]), 
-            new \PagarMe\Sdk\Customer\Phone([
-                'number' => $customer->getPhone(),
-                'ddd' => $customer->getPhoneLocal()
-            ]), null, null);
+        $post = utf8_encode($post);
 
-        if ($create->getId()) {
+        $session = curl_init('https://api.pagar.me/1/customers');
 
-            $customer->setToken($create->getId());
+        curl_setopt($session, CURLOPT_HTTPHEADER, [
+            'accept:application/json',
+            'content-type:application/json; charset=utf-8'
+        ]);
+        curl_setopt($session, CURLOPT_POST, true);
+        curl_setopt($session, CURLOPT_POSTFIELDS, $post);
+        curl_setopt($session, CURLOPT_HEADER, false);
+        curl_setopt($session, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($session, CURLOPT_SSL_VERIFYPEER, false);
+
+        $response = curl_exec($session);
+
+        $httpcode = curl_getinfo($session, CURLINFO_HTTP_CODE);
+            
+        curl_close($session);
+
+        if ($httpcode == '200') {
+
+            $item = json_decode($response);
+
+            if ($item->id) {
+
+                $customer->setToken($item->id);
+
+            };
+            
+        } else {
+
+            throw new \Exception($response);
 
         };
 
@@ -80,50 +111,107 @@ class PagarMe extends Adapter  {
 
     public function getCustomer(String $token): ?\PHPBook\Payment\Customer {
 
-        $pagarMe = new \PagarMe\Sdk\PagarMe($this->getKey());
+        $session = curl_init('https://api.pagar.me/1/customers/' . $token);
 
-        $get = $pagarMe->customer()->get($token);
+        $post = json_encode([
+            'api_key' => $this->getKey()
+        ]);
 
-        if ($get) {
+        $post = utf8_encode($post);
+
+        curl_setopt($session, CURLOPT_HTTPHEADER, [
+            'accept:application/json',
+            'content-type:application/json; charset=utf-8'
+        ]);
+        curl_setopt($session, CURLOPT_HEADER, false);
+        curl_setopt($session, CURLOPT_POST, false);
+        curl_setopt($session, CURLOPT_POSTFIELDS, $post);
+        curl_setopt($session, CURLOPT_CUSTOMREQUEST, 'GET');
+        curl_setopt($session, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($session, CURLOPT_SSL_VERIFYPEER, false);
+
+        $response = curl_exec($session);
+
+        $httpcode = curl_getinfo($session, CURLINFO_HTTP_CODE);
+
+        curl_close($session);
+        
+        if ($httpcode == '200') {
+
+            $item = json_decode($response);
 
             return (new \PHPBook\Payment\Customer)
-                ->setToken($get->getId())
-                ->setName($get->getName())
-                ->setEmail($get->getEmail())
-                ->setIdentity($get->getDocumentNumber())
-                ->setPhone($get->getPhone()->getNumber())
-                ->setPhoneLocal($get->getPhone()->getDdd())
-                ->setAddressStreet($get->getAddress()->getStreet())
-                ->setAddressNumber($get->getAddress()->getStreetNumber())
-                ->setAddressNeighborhood($get->getAddress()->getNeighborhood())
-                ->setAddressZipCode($get->getAddress()->getZipcode())
-                ->setAddressCity($get->getAddress()->getCity())
-                ->setAddressState($get->getAddress()->getState())
-                ->setAddressCountry($get->getAddress()->getCountry());
+                ->setToken($item->id)
+                ->setName($item->name)
+                ->setEmail($item->email)
+                ->setIdentity($item->document_number)
+                ->setPhone($item->phones[0]->number)
+                ->setPhoneLocal($item->phones[0]->ddd)
+                ->setAddressStreet($item->addresses[0]->street)
+                ->setAddressNumber($item->addresses[0]->street_number)
+                ->setAddressNeighborhood($item->addresses[0]->neighborhood)
+                ->setAddressZipCode($item->addresses[0]->zipcode)
+                ->setAddressCity($item->addresses[0]->city)
+                ->setAddressState($item->addresses[0]->state)
+                ->setAddressCountry($item->addresses[0]->country);
 
+        } else {
+
+            throw new \Exception($response);
+            
         };
-
+        
         return null;
 
     }
 
     public function createCard(String $customerToken, Array $card): ?String {
 
-        $pagarMe = new \PagarMe\Sdk\PagarMe($this->getKey());
-
         list($cardNumber, $cardCvv, $cardName, $cardMonth, $cardYear) = $card;
 
-        $create = $pagarMe->card()->create(
-            $cardNumber,
-            $cardName,
-            (strlen($cardMonth) == 1 ? '0' . $cardMonth : $cardMonth) . 
-            (strlen($cardYear) == 4 ? substr($cardYear, 2, 2) : $cardYear)
-        );
+        $post = json_encode([
+            'api_key' => $this->getKey(),
+            'card_number' => $cardNumber,
+            'card_expiration_date' => (strlen($cardMonth) == 1 ? '0' . $cardMonth : $cardMonth) . (strlen($cardYear) == 4 ? substr($cardYear, 2, 2) : $cardYear),
+            'card_cvv' => $cardCvv,
+            'card_holder_name' => $cardName,
+            'customer_id' => $customerToken
+        ]);
 
-        if ($create->getId()) {
+        $post = utf8_encode($post);
+            
+        $session = curl_init('https://api.pagar.me/1/cards');
 
-            return $create->getId();
+        curl_setopt($session, CURLOPT_HTTPHEADER, [
+            'accept:application/json',
+            'content-type:application/json; charset=utf-8'
+        ]);
+        curl_setopt($session, CURLOPT_POST, true);
+        curl_setopt($session, CURLOPT_POSTFIELDS, $post);
+        curl_setopt($session, CURLOPT_HEADER, false);
+        curl_setopt($session, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($session, CURLOPT_SSL_VERIFYPEER, false);
 
+        $response = curl_exec($session);
+
+        $httpcode = curl_getinfo($session, CURLINFO_HTTP_CODE);
+
+        curl_close($session);
+
+        if ($httpcode == '200') {
+
+            $item = json_decode($response);
+
+            if ($item->id) {
+
+                return $item->id;
+
+            };
+
+        } else {
+
+            throw new \Exception($response);
+            
         };
 
         return null;
@@ -132,117 +220,227 @@ class PagarMe extends Adapter  {
 
     public function createCharge(\PHPBook\Payment\Customer $customer, String $cardToken, \PHPBook\Payment\Charge $charge) {
 
-        $pagarMe = new \PagarMe\Sdk\PagarMe($this->getKey());
+        $post = json_encode([
+            'api_key' => $this->getKey(),
+            'amount' => $charge->getPriceCents(),
+            'card_id' => $cardToken,
+            'payment_method' => 'credit_card',
+            'customer' => [
+                'id' => $customer->getToken(),
+                'external_id' => null,
+                'name' => $customer->getName(),
+                'type' => 'individual',
+                'country' => 'BR',
+                'address' => [
+                    'street' => $customer->getAddressStreet(),
+                    'street_number' => $customer->getAddressNumber(),
+                    'neighborhood' => $customer->getAddressNeighborhood(),
+                    'zipcode' => $customer->getAddressZipCode(),
+                    'city' => $customer->getAddressCity(),
+                    'state' => $customer->getAddressState(),
+                    'country' => $customer->getAddressCountry()
+                ],
+                'email' => $customer->getEmail(),
+                'document_type' => 'cpf',
+                'document_number' => $customer->getIdentity(),
+                'phone' => ['ddd' => $customer->getPhoneLocal(), 'number' => $customer->getPhone()]
+            ],
+            'metadata' => [
+                'references' => $charge->getMeta(), 
+                'references_index' => $this->getMetaIndex($charge->getMeta())
+            ]
+        ]);
 
-        if ($customer->getToken()) {
-            
-            $transaction = $pagarMe->transaction()->creditCardTransaction(
-                $charge->getPriceCents(),
-                $pagarMe->card()->get($cardToken),
-                new \PagarMe\Sdk\Customer\Customer([
-                    'id' => $customer->getToken(),
-                    'name' => $customer->getName(),
-                    'email' => $customer->getEmail(),
-                    'documentNumber' => $customer->getIdentity(),
-                    'phone' => new \PagarMe\Sdk\Customer\Phone([
-                        'ddd' => $customer->getPhoneLocal(),
-                        'number' => $customer->getPhone()
-                    ]),
-                    'address' => new \PagarMe\Sdk\Customer\Address([
-                        'street' => $customer->getAddressStreet(),
-                        'streetNumber' => $customer->getAddressNumber(),
-                        'neighborhood' => $customer->getAddressNeighborhood(),
-                        'zipcode' => $customer->getAddressZipCode(),
-                        'city' => $customer->getAddressCity(),
-                        'state' => $customer->getAddressState(),
-                        'country' => $customer->getAddressCountry(),
-                    ]),
-                ]),
-                1,
-                true,
-                null,
-                ['references' => $charge->getMeta(), 'references_index' => $this->getMetaIndex($charge->getMeta())]
-            );
+        $post = utf8_encode($post);
 
-            if ($transaction->getId()) {
+        $session = curl_init('https://api.pagar.me/1/transactions');
 
-                $charge->setToken($transaction->getId());
+        curl_setopt($session, CURLOPT_HTTPHEADER, [
+            'accept:application/json',
+            'content-type:application/json; charset=utf-8'
+        ]);
+        curl_setopt($session, CURLOPT_POST, true);
+        curl_setopt($session, CURLOPT_POSTFIELDS, $post);
+        curl_setopt($session, CURLOPT_HEADER, false);
+        curl_setopt($session, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($session, CURLOPT_SSL_VERIFYPEER, false);
 
-                $charge->setStatus($this->getChargeStatus($transaction->getStatus()));
+        $response = curl_exec($session);
+
+        $httpcode = curl_getinfo($session, CURLINFO_HTTP_CODE);
+
+        curl_close($session);
+
+        if ($httpcode == '200') {
+
+            $item = json_decode($response);
+
+            if ($item->id) {
+
+                $charge->setToken($item->id);
+
+                $charge->setStatus($this->getChargeStatus($item->status));
 
             };
 
+        } else {
+
+            throw new \Exception($response);
+            
         };
             
     }
 
     public function refundCharge(\PHPBook\Payment\Charge $charge) {
 
-        $pagarMe = new \PagarMe\Sdk\PagarMe($this->getKey());
-    
-        if ($charge->getToken()) {
+        $post = json_encode([
+            'api_key' => $this->getKey()
+        ]);
 
-            $pagarMe->transaction()->creditCardRefund(
-                $pagarMe->transaction()->get($charge->getToken()),
-                null
-            );
-    
-            $transaction = $pagarMe->transaction()->get($charge->getToken());
-    
-            $charge->setStatus($this->getChargeStatus($transaction->getStatus()));
-    
+        $post = utf8_encode($post);
+            
+        $session = curl_init('https://api.pagar.me/1/transactions/' . $charge->getToken() . '/refund');
+
+        curl_setopt($session, CURLOPT_HTTPHEADER, [
+            'accept:application/json',
+            'content-type:application/json; charset=utf-8',
+        ]);
+
+        curl_setopt($session, CURLOPT_POSTFIELDS, $post);
+        curl_setopt($session, CURLOPT_HEADER, false);
+        curl_setopt($session, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($session, CURLOPT_SSL_VERIFYPEER, false);
+
+        $response = curl_exec($session);
+
+        $httpcode = curl_getinfo($session, CURLINFO_HTTP_CODE);
+
+        curl_close($session);
+        
+        if ($httpcode == '200') {
+
+            $item = json_decode($response);
+
+            if ($item->id) {
+
+                $charge->setStatus($this->getChargeStatus($item->status));
+
+            };
+
+        } else {
+
+            throw new \Exception($response);
+            
         };
 
     }
 
     public function getCharge(String $token): ?\PHPBook\Payment\Charge {
 
-        $pagarMe = new \PagarMe\Sdk\PagarMe($this->getKey());
+        $key = 'ak_test_nFM7nDMKJA0TDNVGCaQNgnNzFG4GU0';
 
-        $transaction = $pagarMe->transaction()->get($token);
+        $session = curl_init('https://api.pagar.me/1/transactions/' . $token);
+    
+        $post = json_encode([
+          'api_key' => $key
+        ]);
+    
+        curl_setopt($session, CURLOPT_HTTPHEADER, [
+            'accept:application/json',
+            'content-type:application/json; charset=utf-8',
+        ]);
+        curl_setopt($session, CURLOPT_HEADER, false);
+        curl_setopt($session, CURLOPT_POSTFIELDS, $post);
+        curl_setopt($session, CURLOPT_CUSTOMREQUEST, 'GET');
+        curl_setopt($session, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($session, CURLOPT_SSL_VERIFYPEER, false);
+    
+        $response = curl_exec($session);
+    
+        $httpcode = curl_getinfo($session, CURLINFO_HTTP_CODE);
+    
+        curl_close($session);
+        
+        if ($httpcode == '200') {
 
-        if ($transaction) {
+            $item = json_decode($response);
 
-            return (new \PHPBook\Payment\Charge)
-                ->setToken($transaction->getId())
-                ->setPriceCents($transaction->getAmount())
-                ->setMeta($transaction->getMetadata()['references'])
-                ->setStatus($this->getChargeStatus($transaction->getStatus()));
-                
+            if ($item->id) {
+
+                return (new \PHPBook\Payment\Charge)
+                    ->setToken($item->id)
+                    ->setPriceCents($item->amount)
+                    ->setMeta($item->metadata->references)
+                    ->setStatus($this->getChargeStatus($item->status));
+
+            };
+
+        } else {
+
+            throw new \Exception($response);
+            
         };
-       
+        
         return null;
 
     }
 
     public function getChargesByMeta(String $meta): Array { # Array of \PHPBook\Payment\Charge
 
-        $pagarMe = new \PagarMe\Sdk\PagarMe($this->getKey());
-        
-        $results = $pagarMe->search()->get(
-            'transaction',
-            [   
-                'query' => [
-                    'query_string' => [
-                        'query' => $this->getMetaIndex($meta),
-                        'fields' => ['references_index'],
-                        "default_operator" => "AND",
-                    ],
+        $session = curl_init('https://api.pagar.me/1/search');
+
+        $post = json_encode([
+            'api_key' => $this->getKey(),
+            'type' => 'transaction',
+            'query' => [
+                    'query' => [
+                        'query_string' => [
+                            'query' => $this->getMetaIndex($meta),
+                            'fields' => ['references_index'],
+                            "default_operator" => "AND",
+                        ],
+                    ]
                 ]
+        ]);
 
-            ]
-        );
+        curl_setopt($session, CURLOPT_HTTPHEADER, [
+            'accept:application/json',
+            'content-type:application/json; charset=utf-8',
+        ]);
+        curl_setopt($session, CURLOPT_HEADER, false);
+        curl_setopt($session, CURLOPT_POSTFIELDS, $post);
+        curl_setopt($session, CURLOPT_CUSTOMREQUEST, 'GET');
+        curl_setopt($session, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($session, CURLOPT_SSL_VERIFYPEER, false);
 
-        $charges = [];
+        $response = curl_exec($session);
+
+        $httpcode = curl_getinfo($session, CURLINFO_HTTP_CODE);
+
+        curl_close($session);
         
-        foreach($results->hits->hits as $item) {
-            $charges[] = (new \PHPBook\Payment\Charge)
-                ->setToken($item->_source->id)
-                ->setPriceCents($item->_source->amount)
-                ->setMeta($item->_source->metadata->references)
-                ->setStatus($this->getChargeStatus($item->_source->status));
-        };
+        $charges = [];
 
+        if ($httpcode == '200') {
+            
+            $items = json_decode($response);
+
+            foreach($items->hits->hits as $item) {
+                
+                $charges[] = (new \PHPBook\Payment\Charge)
+                    ->setToken($item->_source->id)
+                    ->setPriceCents($item->_source->amount)
+                    ->setMeta($item->_source->metadata->references)
+                    ->setStatus($this->getChargeStatus($item->_source->status));
+                    
+            };
+
+        } else {
+
+            throw new \Exception($response);
+            
+        };
+        
         return $charges;
 
     }

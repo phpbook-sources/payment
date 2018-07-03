@@ -45,54 +45,68 @@ class MundiPagg extends Adapter {
     }
 
     public function createCustomer(\PHPBook\Payment\Customer $customer) {
-  
-        try {
 
-            $client = new \MundiAPILib\MundiAPIClient($this->getKey());
-
-            $customers = $client->getCustomers();
-
-            $modelAddress = new \MundiAPILib\Models\CreateAddressRequest();
-            $modelAddress->street = $customer->getAddressStreet();
-            $modelAddress->number = $customer->getAddressNumber();
-            $modelAddress->zipCode = $customer->getAddressZipCode();
-            $modelAddress->neighborhood = $customer->getAddressNeighborhood();
-            $modelAddress->city = $customer->getAddressCity();
-            $modelAddress->state = $customer->getAddressState();
-            $modelAddress->country = 'BR';
-
-            $modelPhone = new \MundiAPILib\Models\CreatePhoneRequest(55, $customer->getPhone(), $customer->getPhoneLocal());
-            $modelPhone->countryCode = '55';
-            $modelPhone->number = $customer->getPhone();
-            $modelPhone->areaCode = $customer->getPhoneLocal();
-
-            $modelPhones = new \MundiAPILib\Models\CreatePhonesRequest();
-            $modelPhones->homePhone = $modelPhone;
-
-            $modelCustomer = new \MundiAPILib\Models\CreateCustomerRequest();
-            $modelCustomer->name = $customer->getName();
-            $modelCustomer->email = $customer->getEmail();
-            $modelCustomer->document = $customer->getIdentity();
-            $modelCustomer->type = 'individual';
-            $modelCustomer->address = $modelAddress;
-            $modelCustomer->metadata = ['country' => $customer->getAddressCountry()];
-            $modelCustomer->phones = $modelPhones;
-
-            $result = $customers->createCustomer($modelCustomer);
-            
-            if ($result->id) {
-
-                $customer->setToken($result->id);
+        $post = json_encode([
+            'name' => $customer->getName(),
+            'email' => $customer->getEmail(),
+            'code' => null,
+            'document' => $customer->getIdentity(),
+            'type' => 'individual',
+            'gender' => null,
+            'address' => [
+                'line_1' => $customer->getAddressStreet(),
+                'line_2' => $customer->getAddressNeighborhood(),
+                'zip_code' => $customer->getAddressZipCode(),
+                'city' => $customer->getAddressCity(),
+                'state' => $customer->getAddressState(),
+                'country' => 'BR',
+            ],
+            'birthdate' => null,
+            'phones' => [
+                'home_phone' => [
+                    'country_code' => '55',
+                    'area_code' => $customer->getPhoneLocal(),
+                    'number' => $customer->getPhone()
+                ],
+                'mobile_phone' => null
+            ],
+            'metadata' => [
+                'address_country' => $customer->getAddressCountry(),
+                'address_number' => $customer->getAddressNumber(),
+            ],
+        ]);
     
-            };
+        $post = utf8_encode($post);
+    
+        $session = curl_init('https://api.mundipagg.com/core/v1/customers');
+    
+        curl_setopt($session, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
+        curl_setopt($session, CURLOPT_HTTPHEADER, [
+            'accept:application/json',
+            'content-type:application/json; charset=utf-8'
+        ]);
+        curl_setopt($session, CURLOPT_USERPWD, $this->getKey() . ':');
+        curl_setopt($session, CURLOPT_POST, true);
+        curl_setopt($session, CURLOPT_POSTFIELDS, $post);
+        curl_setopt($session, CURLOPT_HEADER, false);
+        curl_setopt($session, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($session, CURLOPT_SSL_VERIFYPEER, false);
+    
+        $response = curl_exec($session);
+    
+        $httpcode = curl_getinfo($session, CURLINFO_HTTP_CODE);
+        
+        curl_close($session);
 
-        } catch(\MundiAPILib\Exceptions\ErrorException $e)  {
+        if ($httpcode == '200') {
+                  
+            $item = json_decode($response);
 
-            throw new \Exception($e->getResponseBody());
+            $customer->setToken($item->id);
 
-        } catch(\Exception $e ) {
-            
-            throw new \Exception($e->getMessage());
+        } else {
+
+            throw new \Exception($response);
 
         };
 
@@ -100,155 +114,223 @@ class MundiPagg extends Adapter {
 
     public function getCustomer(String $token): ?\PHPBook\Payment\Customer {
 
-        try {
-                
-            $client = new \MundiAPILib\MundiAPIClient($this->getKey());
+        $session = curl_init('https://api.mundipagg.com/core/v1/customers/' . $token);
 
-            $customers = $client->getCustomers();
+        curl_setopt($session, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
+        curl_setopt($session, CURLOPT_HTTPHEADER, [
+            'accept:application/json',
+            'content-type:application/json; charset=utf-8'
+        ]);
+        curl_setopt($session, CURLOPT_USERPWD, $this->getKey() . ':');
+        curl_setopt($session, CURLOPT_HEADER, false);
+        curl_setopt($session, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($session, CURLOPT_SSL_VERIFYPEER, false);
 
-            $result = $customers->getCustomer($token);
+        $response = curl_exec($session);
 
-            if ($result->id) {
+        $httpcode = curl_getinfo($session, CURLINFO_HTTP_CODE);
 
+        curl_close($session);
+        
+        if ($httpcode == '200') {
+
+            $item = json_decode($response);
+            
+            if ($item->id) {
+ 
                 return (new \PHPBook\Payment\Customer)
-                    ->setToken($result->id)
-                    ->setName($result->name)
-                    ->setEmail($result->email)
-                    ->setIdentity($result->document)
-                    ->setPhone($result->phones->homePhone->number)
-                    ->setPhoneLocal($result->phones->homePhone->areaCode)
-                    ->setAddressStreet($result->address->street)
-                    ->setAddressNumber($result->address->number)
-                    ->setAddressNeighborhood($result->address->neighborhood)
-                    ->setAddressZipCode($result->address->zipCode)
-                    ->setAddressCity($result->address->city)
-                    ->setAddressState($result->address->state)
-                    ->setAddressCountry($result->metadata['country']);
-
+                    ->setToken($item->id)
+                    ->setName($item->name)
+                    ->setEmail($item->email)
+                    ->setIdentity($item->document)
+                    ->setPhone($item->phones->home_phone->number)
+                    ->setPhoneLocal($item->phones->home_phone->area_code)
+                    ->setAddressStreet($item->address->line_1)
+                    ->setAddressNumber($item->metadata->address_number)
+                    ->setAddressNeighborhood($item->address->line_2)
+                    ->setAddressZipCode($item->address->zip_code)
+                    ->setAddressCity($item->address->city)
+                    ->setAddressState($item->address->state)
+                    ->setAddressCountry($item->metadata->address_country);
+                    
             };
 
-            return null;
+        } else {
 
-        } catch(\MundiAPILib\Exceptions\ErrorException $e)  {
-
-            throw new \Exception($e->getResponseBody());
-
-        } catch(\Exception $e ) {
-            
-            throw new \Exception($e->getMessage());
+            throw new \Exception($response);
 
         };
+        
+        return null;
 
     }
 
     public function createCard(String $customerToken, Array $card): ?String {
 
-        try {
-                
-            $client = new \MundiAPILib\MundiAPIClient($this->getKey());
+        list($cardNumber, $cardCvv, $cardName, $cardMonth, $cardYear) = $card;
+
+        $post = json_encode([
+            'number' => $cardNumber,
+            'holder_name' => $cardName,
+            'exp_month' => $cardMonth,
+            'exp_year' => $cardYear
+        ]);
+
+        $post = utf8_encode($post);
             
-            $customers = $client->getCustomers();
+        $session = curl_init('https://api.mundipagg.com/core/v1/customers/'.$customerToken.'/cards');
 
-            list($cardNumber, $cardCvv, $cardName, $cardMonth, $cardYear) = $card;
+        curl_setopt($session, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
+        curl_setopt($session, CURLOPT_HTTPHEADER, [
+            'accept:application/json',
+            'content-type:application/json; charset=utf-8'
+        ]);
+        curl_setopt($session, CURLOPT_USERPWD, $this->getKey() . ':');
+        curl_setopt($session, CURLOPT_POST, true);
+        curl_setopt($session, CURLOPT_POSTFIELDS, $post);
+        curl_setopt($session, CURLOPT_HEADER, false);
+        curl_setopt($session, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($session, CURLOPT_SSL_VERIFYPEER, false);
 
-            $modelCard = new \MundiAPILib\Models\CreateCardRequest();
-            $modelCard->number = $cardNumber;
-            $modelCard->holderName = $cardName;
-            $modelCard->expMonth = $cardMonth;
-            $modelCard->expYear = $cardYear;
+        $response = curl_exec($session);
 
-            $result = $customers->createCard($customerToken, $modelCard);
+        $httpcode = curl_getinfo($session, CURLINFO_HTTP_CODE);
 
-            if ($result->id) {
+        curl_close($session);
+        
+        if ($httpcode == '200') {
+            
+            $item = json_decode($response);
 
-                return $result->id;
+            if ($item->id) {
+
+                return $item->id;
 
             };
 
-            return null;
+        } else {
 
-        } catch(\MundiAPILib\Exceptions\ErrorException $e)  {
-
-            throw new \Exception($e->getResponseBody());
-
-        } catch(\Exception $e ) {
-            
-            throw new \Exception($e->getMessage());
+            throw new \Exception($response);
 
         };
+        
+        return null;
 
     }
     
     public function createCharge(\PHPBook\Payment\Customer $customer, String $cardToken, \PHPBook\Payment\Charge $charge) {
+        
+        $post = json_encode([
+            'name' => $customer->getName(),
+            'email' => $customer->getEmail(),
+            'code' => null,
+            'document' => $customer->getIdentity(),
+            'type' => 'individual',
+            'gender' => null,
+            'address' => [
+                'line_1' => $customer->getAddressStreet(),
+                'line_2' => $customer->getAddressNeighborhood(),
+                'zip_code' => $customer->getAddressZipCode(),
+                'city' => $customer->getAddressCity(),
+                'state' => $customer->getAddressState(),
+                'country' => 'BR',
+            ],
+            'birthdate' => null,
+            'phones' => [
+                'home_phone' => [
+                    'country_code' => '55',
+                    'area_code' => $customer->getPhoneLocal(),
+                    'number' => $customer->getPhone()
+                ],
+                'mobile_phone' => null
+            ],
+            'metadata' => [
+                'address_country' => $customer->getAddressCountry(),
+                'address_number' => $customer->getAddressNumber(),
+            ],
+        ]);
+    
+        $post = utf8_encode($post);
+    
+        $session = curl_init('https://api.mundipagg.com/core/v1/customers/' . $customer->getToken());
+    
+        curl_setopt($session, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
+        curl_setopt($session, CURLOPT_HTTPHEADER, [
+            'accept:application/json',
+            'content-type:application/json; charset=utf-8'
+        ]);
+        curl_setopt($session, CURLOPT_USERPWD, $this->getKey() . ':');
+        curl_setopt($session, CURLOPT_POSTFIELDS, $post);
+        curl_setopt($session, CURLOPT_CUSTOMREQUEST, 'PUT');
+        curl_setopt($session, CURLOPT_HEADER, false);
+        curl_setopt($session, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($session, CURLOPT_SSL_VERIFYPEER, false);
+    
+        $response = curl_exec($session);
+    
+        $httpcode = curl_getinfo($session, CURLINFO_HTTP_CODE);
+        
+        curl_close($session);
 
-        try {
-                
-            $client = new \MundiAPILib\MundiAPIClient($this->getKey());
+        if ($httpcode == '200') {
 
-            $charges = $client->getCharges();
-
-            $customers = $client->getCustomers();
-
-            $modelAddress = new \MundiAPILib\Models\CreateAddressRequest();
-            $modelAddress->street = $customer->getAddressStreet();
-            $modelAddress->number = $customer->getAddressNumber();
-            $modelAddress->zipCode = $customer->getAddressZipCode();
-            $modelAddress->neighborhood = $customer->getAddressNeighborhood();
-            $modelAddress->city = $customer->getAddressCity();
-            $modelAddress->state = $customer->getAddressState();
-            $modelAddress->country = 'BR';
-
-            $modelPhone = new \MundiAPILib\Models\CreatePhoneRequest(55, $customer->getPhone(), $customer->getPhoneLocal());
-            $modelPhone->countryCode = '55';
-            $modelPhone->number = $customer->getPhone();
-            $modelPhone->areaCode = $customer->getPhoneLocal();
-
-            $modelPhones = new \MundiAPILib\Models\CreatePhonesRequest();
-            $modelPhones->homePhone = $modelPhone;
-
-            $modelCustomer = new \MundiAPILib\Models\UpdateCustomerRequest();
-            $modelCustomer->name = $customer->getName();
-            $modelCustomer->email = $customer->getEmail();
-            $modelCustomer->document = $customer->getIdentity();
-            $modelCustomer->type = 'individual';
-            $modelCustomer->address = $modelAddress;
-            $modelCustomer->metadata = ['country' => $customer->getAddressCountry()];
-            $modelCustomer->phones = $modelPhones;
+            $post = json_encode([
+                'code' => $charge->getMeta(),
+                'amount' => $charge->getPriceCents(),
+                'customer_id' => $customer->getToken(),
+                'payment' => [
+                    'payment_method' => 'credit_card',
+                    'credit_card' => [
+                       'card_id' => $cardToken
+                    ],
+                    'amount' => $charge->getPriceCents(),
+                    'customer_id' => $customer->getToken()
+                ]
+            ]);
+    
+            $post = utf8_encode($post);
+    
+            $session = curl_init('https://api.mundipagg.com/core/v1/charges');
+    
+            curl_setopt($session, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
+            curl_setopt($session, CURLOPT_HTTPHEADER, [
+                'accept:application/json',
+                'content-type:application/json; charset=utf-8'
+            ]);
+            curl_setopt($session, CURLOPT_USERPWD, $this->getKey() . ':');
+            curl_setopt($session, CURLOPT_POST, true);
+            curl_setopt($session, CURLOPT_POSTFIELDS, $post);
+            curl_setopt($session, CURLOPT_HEADER, false);
+            curl_setopt($session, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($session, CURLOPT_SSL_VERIFYPEER, false);
+    
+            $response = curl_exec($session);
+    
+            $httpcode = curl_getinfo($session, CURLINFO_HTTP_CODE);
             
-            $customers->updateCustomer($customer->getToken(), $modelCustomer);
+            curl_close($session);
+    
+            if ($httpcode == '200') {
+    
+                $item = json_decode($response);
+    
+                if ($item->id) {
+    
+                    $charge->setToken($item->id);
+    
+                    $charge->setStatus($this->getChargeStatus($item->status));
+    
+                };
+    
+            } else {
 
-            $modelCard = new \MundiAPILib\Models\CreateCreditCardPaymentRequest();
-            $modelCard->cardId = $cardToken;
-
-            $modelPayment = new \MundiAPILib\Models\CreatePaymentRequest();
-            $modelPayment->paymentMethod = 'credit_card';
-            $modelPayment->creditCard = $modelCard;
-            $modelPayment->amount = $charge->getPriceCents();
-            $modelPayment->customerId = $customer->getToken();
-
-            $modelCharge = new \MundiAPILib\Models\CreateChargeRequest();
-            $modelCharge->code = $charge->getMeta();
-            $modelCharge->amount = $charge->getPriceCents();
-            $modelCharge->customerId = $customer->getToken();
-            $modelCharge->payment = $modelPayment;
-
-            $result = $charges->createCharge($modelCharge);
-
-            if ($result->id) {
-
-                $charge->setToken($result->id);
-
-                $charge->setStatus($this->getChargeStatus($result->status));
-
+                throw new \Exception($response);
+    
             };
-
-        } catch(\MundiAPILib\Exceptions\ErrorException $e)  {
-
-            throw new \Exception($e->getResponseBody());
-
-        } catch(\Exception $e ) {
             
-            throw new \Exception($e->getMessage());
+        } else {
+
+            throw new \Exception($response);
 
         };
 
@@ -256,29 +338,45 @@ class MundiPagg extends Adapter {
 
     public function refundCharge(\PHPBook\Payment\Charge $charge) {
 
-        try {
+        $post = json_encode([
+            'amount' => null
+        ]);
 
-            $client = new \MundiAPILib\MundiAPIClient($this->getKey());
-
-            $charges = $client->getCharges();
-
-            $charges->cancelCharge($charge->getToken());
-
-            $result = $charges->getCharge($charge->getToken());
+        $post = utf8_encode($post);
             
-            if ($result->id) {
+        $session = curl_init('https://api.mundipagg.com/core/v1/charges/' . $charge->getToken());
 
-                $charge->setStatus($this->getChargeStatus($result->status));
+        curl_setopt($session, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
+        curl_setopt($session, CURLOPT_HTTPHEADER, [
+            'accept:application/json',
+            'content-type:application/json; charset=utf-8'
+        ]);
+        curl_setopt($session, CURLOPT_USERPWD, $this->getKey() . ':');
+        curl_setopt($session, CURLOPT_CUSTOMREQUEST, 'DELETE');
+        curl_setopt($session, CURLOPT_POSTFIELDS, $post);
+        curl_setopt($session, CURLOPT_HEADER, false);
+        curl_setopt($session, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($session, CURLOPT_SSL_VERIFYPEER, false);
+
+        $response = curl_exec($session);
+
+        $httpcode = curl_getinfo($session, CURLINFO_HTTP_CODE);
+
+        curl_close($session);
+        
+        if ($httpcode == '200') {
+
+            $item = json_decode($response);
+
+            if ($item->id) {
+
+                $charge->setStatus($this->getChargeStatus($item->status));
 
             };
 
-        } catch(\MundiAPILib\Exceptions\ErrorException $e)  {
+        } else {
 
-            throw new \Exception($e->getResponseBody());
-
-        } catch(\Exception $e ) {
-            
-            throw new \Exception($e->getMessage());
+            throw new \Exception($response);
 
         };
 
@@ -286,53 +384,79 @@ class MundiPagg extends Adapter {
 
     public function getCharge(String $token): ?\PHPBook\Payment\Charge {
 
-        try {
+        $session = curl_init('https://api.mundipagg.com/core/v1/charges/' . $token);
 
-            $client = new \MundiAPILib\MundiAPIClient($this->getKey());
+        curl_setopt($session, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
+        curl_setopt($session, CURLOPT_HTTPHEADER, [
+            'accept:application/json',
+            'content-type:application/json; charset=utf-8'
+        ]);
+        curl_setopt($session, CURLOPT_USERPWD, $this->getKey() . ':');
+        curl_setopt($session, CURLOPT_HEADER, false);
+        curl_setopt($session, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($session, CURLOPT_SSL_VERIFYPEER, false);
 
-            $charges = $client->getCharges();
+        $response = curl_exec($session);
 
-            $result = $charges->getCharge($token);
+        $httpcode = curl_getinfo($session, CURLINFO_HTTP_CODE);
+
+        curl_close($session);
+
+        if ($httpcode == '200') {
             
-            if ($result->id) {
+            $item = json_decode($response);
+
+            if ($item->id) {
 
                 return (new \PHPBook\Payment\Charge)
-                    ->setToken($result->id)
-                    ->setPriceCents($result->amount)
-                    ->setMeta($result->code)
-                    ->setStatus($this->getChargeStatus($result->status));
+                ->setToken($item->id)
+                ->setPriceCents($item->amount)
+                ->setMeta($item->code)
+                ->setStatus($this->getChargeStatus($item->status));
 
             };
 
-            return null;
+        } else {
 
-        } catch(\MundiAPILib\Exceptions\ErrorException $e)  {
-
-            throw new \Exception($e->getResponseBody());
-
-        } catch(\Exception $e ) {
-            
-            throw new \Exception($e->getMessage());
+            throw new \Exception($response);
 
         };
+
+        return null;
 
     }
 
     public function getChargesByMeta(String $meta): Array { # Array of \PHPBook\Payment\Charge
 
-        try {
+        $page = 1;
+
+        $items = [];
+
+        do {
+
+            $session = curl_init('https://api.mundipagg.com/core/v1/charges?code='.$meta.'&page='.$page.'&size=10');
+
+            curl_setopt($session, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
+            curl_setopt($session, CURLOPT_HTTPHEADER, [
+                'accept:application/json',
+                'content-type:application/json; charset=utf-8'
+            ]);
+            curl_setopt($session, CURLOPT_USERPWD, $this->getKey() . ':');
+            curl_setopt($session, CURLOPT_HEADER, false);
+            curl_setopt($session, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($session, CURLOPT_SSL_VERIFYPEER, false);
+    
+            $response = curl_exec($session);
+    
+            $httpcode = curl_getinfo($session, CURLINFO_HTTP_CODE);
+    
+            curl_close($session);
+
+            $results = false;
+
+            if ($httpcode == '200') {
                 
-            $client = new \MundiAPILib\MundiAPIClient($this->getKey());
-
-            $charges = $client->getCharges();
-
-            $page = 1;
-
-            $items = [];
-
-            do {
-
-                $results = $charges->getCharges($page, 10, $meta);
+                $results = json_decode($response);
 
                 foreach($results->data as $result) {
 
@@ -341,24 +465,20 @@ class MundiPagg extends Adapter {
                         ->setPriceCents($result->amount)
                         ->setMeta($result->code)
                         ->setStatus($this->getChargeStatus($result->status));
-        
-                };
 
-                $page++;
+                 };
 
-            } while($results->paging->next);      
+            } else {
 
-            return $items;
+                throw new \Exception($response);
+    
+            };
 
-        } catch(\MundiAPILib\Exceptions\ErrorException $e)  {
+            $page++;
 
-            throw new \Exception($e->getResponseBody());
-
-        } catch(\Exception $e ) {
-            
-            throw new \Exception($e->getMessage());
-
-        };
+        } while(($results) and (isset($results->paging->next)));
+      
+        return $items;
 
     }
     
