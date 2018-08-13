@@ -53,27 +53,15 @@ class MundiPagg extends Adapter {
             'document' => $customer->getIdentity(),
             'type' => 'individual',
             'gender' => null,
-            'address' => [
-                'line_1' => $customer->getAddressStreet(),
-                'line_2' => $customer->getAddressNeighborhood(),
-                'zip_code' => $customer->getAddressZipCode(),
-                'city' => $customer->getAddressCity(),
-                'state' => $customer->getAddressState(),
-                'country' => 'BR',
-            ],
             'birthdate' => null,
             'phones' => [
                 'home_phone' => [
-                    'country_code' => '55',
+                    'country_code' => $customer->getPhoneCountry(),
                     'area_code' => $customer->getPhoneLocal(),
                     'number' => $customer->getPhone()
                 ],
                 'mobile_phone' => null
-            ],
-            'metadata' => [
-                'address_country' => $customer->getAddressCountry(),
-                'address_number' => $customer->getAddressNumber(),
-            ],
+            ]
         ]);
     
         $post = utf8_encode($post);
@@ -145,13 +133,7 @@ class MundiPagg extends Adapter {
                     ->setIdentity($item->document)
                     ->setPhone($item->phones->home_phone->number)
                     ->setPhoneLocal($item->phones->home_phone->area_code)
-                    ->setAddressStreet($item->address->line_1)
-                    ->setAddressNumber($item->metadata->address_number)
-                    ->setAddressNeighborhood($item->address->line_2)
-                    ->setAddressZipCode($item->address->zip_code)
-                    ->setAddressCity($item->address->city)
-                    ->setAddressState($item->address->state)
-                    ->setAddressCountry($item->metadata->address_country);
+                    ->setPhoneCountry($item->phones->home_phone->country_code);
                     
             };
 
@@ -228,25 +210,25 @@ class MundiPagg extends Adapter {
             'type' => 'individual',
             'gender' => null,
             'address' => [
-                'line_1' => $customer->getAddressStreet(),
-                'line_2' => $customer->getAddressNeighborhood(),
-                'zip_code' => $customer->getAddressZipCode(),
-                'city' => $customer->getAddressCity(),
-                'state' => $customer->getAddressState(),
-                'country' => 'BR',
+                'line_1' => $charge->getShippingAddressStreet(),
+                'line_2' => $charge->getShippingAddressNeighborhood(),
+                'zip_code' => $charge->getShippingAddressZipCode(),
+                'city' => $charge->getShippingAddressCity(),
+                'state' => $charge->getShippingAddressState(),
+                'country' => $charge->getShippingAddressCountry()
             ],
             'birthdate' => null,
             'phones' => [
                 'home_phone' => [
-                    'country_code' => '55',
+                    'country_code' => $customer->getPhoneCountry(),
                     'area_code' => $customer->getPhoneLocal(),
                     'number' => $customer->getPhone()
                 ],
                 'mobile_phone' => null
             ],
             'metadata' => [
-                'address_country' => $customer->getAddressCountry(),
-                'address_number' => $customer->getAddressNumber(),
+                'address_country' => $charge->getShippingAddressCountry(),
+                'address_number' => $charge->getShippingAddressNumber()
             ],
         ]);
     
@@ -285,6 +267,15 @@ class MundiPagg extends Adapter {
                     ],
                     'amount' => $charge->getPriceCents(),
                     'customer_id' => $customer->getToken()
+                ],
+                'metadata' => [
+                    "country" => $charge->getShippingAddressCountry(),
+                    "state" => $charge->getShippingAddressState(),
+                    "city" => $charge->getShippingAddressCity(),
+                    "neighborhood" => $charge->getShippingAddressNeighborhood(),
+                    "street" => $charge->getShippingAddressStreet(),
+                    "street_number" => $charge->getShippingAddressNumber(),
+                    "zipcode" => $charge->getShippingAddressZipCode()
                 ]
             ]);
     
@@ -412,7 +403,14 @@ class MundiPagg extends Adapter {
                 ->setToken($item->id)
                 ->setPriceCents($item->amount)
                 ->setMeta($item->code)
-                ->setStatus($this->getChargeStatus($item->status));
+                ->setStatus($this->getChargeStatus($item->status))
+                ->setShippingAddressStreet($item->metadata->street)
+                ->setShippingAddressNumber($item->metadata->street_number)
+                ->setShippingAddressNeighborhood($item->metadata->neighborhood)
+                ->setShippingAddressZipCode($item->metadata->zipcode)
+                ->setShippingAddressCity($item->metadata->city)
+                ->setShippingAddressState($item->metadata->state)
+                ->setShippingAddressCountry($item->metadata->country);
 
             };
 
@@ -458,15 +456,30 @@ class MundiPagg extends Adapter {
                 
                 $results = json_decode($response);
 
-                foreach($results->data as $result) {
+                if ((isset($results->data)) and (count($results->data))) {
 
-                    $items[] = (new \PHPBook\Payment\Charge)
-                        ->setToken($result->id)
-                        ->setPriceCents($result->amount)
-                        ->setMeta($result->code)
-                        ->setStatus($this->getChargeStatus($result->status));
+                    foreach($results->data as $result) {
 
-                 };
+                        $items[] = (new \PHPBook\Payment\Charge)
+                            ->setToken($result->id)
+                            ->setPriceCents($result->amount)
+                            ->setMeta($result->code)
+                            ->setStatus($this->getChargeStatus($result->status))
+                            ->setShippingAddressStreet(isset($result->metadata->street) ? $result->metadata->street : '')
+                            ->setShippingAddressNumber(isset($result->metadata->street_number) ? $result->metadata->street_number : '')
+                            ->setShippingAddressNeighborhood(isset($result->metadata->neighborhood) ? $result->metadata->neighborhood : '')
+                            ->setShippingAddressZipCode(isset($result->metadata->zipcode) ? $result->metadata->zipcode : '')
+                            ->setShippingAddressCity(isset($result->metadata->city) ? $result->metadata->city : '')
+                            ->setShippingAddressState(isset($result->metadata->state) ? $result->metadata->state : '')
+                            ->setShippingAddressCountry(isset($result->metadata->country) ? $result->metadata->country : '');
+    
+                    };
+
+                } else {
+
+                    break;
+
+                };
 
             } else {
 
@@ -475,8 +488,8 @@ class MundiPagg extends Adapter {
             };
 
             $page++;
-
-        } while(($results) and (isset($results->paging->next)));
+            
+        } while(true);
       
         return $items;
 

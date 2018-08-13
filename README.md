@@ -1,4 +1,4 @@
-    
+
 + [About Payment](#about-payment)
 + [Composer Install](#composer-install)
 + [Declare Configurations](#declare-configurations)
@@ -31,7 +31,7 @@
 			//the PHPBook Payment does not throw exceptions, but you can take it here
 			//you can store $message in database or something else
 		})
-		->setDriver((new \PHPBook\Payment\Driver\PagarMe)->setKey('key'))
+		->setDriver((new \PHPBook\Payment\Driver\PagarMe)->setKey('key')->setKeyVersion('v2017-08-28'))
 );
 
 //Driver gateway MundiPagg
@@ -85,13 +85,7 @@ foreach($gateways as $code => $gateway) {
 		->setIdentity('16815587002')
 		->setPhone('999999999')
 		->setPhoneLocal('47')
-		->setAddressStreet('Praça Gov. Irineu Bornhausen')
-		->setAddressNumber('100')
-		->setAddressNeighborhood('Centro')
-		->setAddressZipCode('88310-000')
-		->setAddressCity('Itajaí')
-		->setAddressState('SC')
-		->setAddressCountry('Brasil');
+		->setPhoneCountry('55');
 
 	//getting customer attributes
 	$customer->getToken();
@@ -100,13 +94,7 @@ foreach($gateways as $code => $gateway) {
 	$customer->getIdentity();
 	$customer->getPhone();
 	$customer->getPhoneLocal();
-	$customer->getAddressStreet();
-	$customer->getAddressNumber();
-	$customer->getAddressNeighborhood();
-	$customer->getAddressZipCode();
-	$customer->getAddressCity();
-	$customer->getAddressState();
-	$customer->getAddressCountry();
+	$customer->getPhoneCountry();
 
 	(new \PHPBook\Payment\Transaction\Customer\Create)
 		->setCustomer($customer)
@@ -172,6 +160,16 @@ if ($customer) {
 
 	$cardToken = '0001';
 
+	$chargeMeta = 'billing-10';
+	$chargePriceCents = 100;
+	$chargeShippingAddressStreet = 'Praça Gov. Irineu Bornhausen';
+	$chargeShippingAddressNumber = '100';
+	$chargeShippingAddressNeighborhood = 'Centro';
+	$chargeShippingAddressZipCode = '88310000';
+	$chargeShippingAddressCity = 'Itajaí';
+	$chargeShippingAddressState = 'SC';
+	$chargeShippingAddressCountry = 'BR';
+
 	$customer = (new \PHPBook\Payment\Transaction\Customer\Get)
 		->setToken($customerToken)
 		->get();
@@ -181,8 +179,15 @@ if ($customer) {
 
 	$charge = (new \PHPBook\Payment\Charge)
 		->setToken(null) //gateway defines when create
-		->setMeta('billing-10')
-		->setPriceCents(100);
+		->setMeta($chargeMeta)
+		->setPriceCents($chargePriceCents)
+		->setShippingAddressStreet($chargeShippingAddressStreet)
+		->setShippingAddressNumber($chargeShippingAddressNumber)
+		->setShippingAddressNeighborhood($chargeShippingAddressNeighborhood)
+		->setShippingAddressZipCode($chargeShippingAddressZipCode)
+		->setShippingAddressCity($chargeShippingAddressCity)
+		->setShippingAddressState($chargeShippingAddressState)
+		->setShippingAddressCountry($chargeShippingAddressCountry);
 
 	(new \PHPBook\Payment\Transaction\Charge\Create)
 		->setCustomer($customer)
@@ -209,6 +214,16 @@ if ($customer) {
 	$cardMonth = '01';
 	$cardYear = '20';
 
+	$chargeMeta = 'billing-10';
+	$chargePriceCents = 100;
+	$chargeShippingAddressStreet = 'Praça Gov. Irineu Bornhausen';
+	$chargeShippingAddressNumber = '100';
+	$chargeShippingAddressNeighborhood = 'Centro';
+	$chargeShippingAddressZipCode = '88310000';
+	$chargeShippingAddressCity = 'Itajaí';
+	$chargeShippingAddressState = 'SC';
+	$chargeShippingAddressCountry = 'BR';
+
 	$customer = (new \PHPBook\Payment\Transaction\Customer\Get)
 		->setToken($customerToken)
 		->get();
@@ -226,8 +241,15 @@ if ($customer) {
 
 		$charge = (new \PHPBook\Payment\Charge)
 			->setToken(null) //gateway defines when create
-			->setMeta('billing-10')
-			->setPriceCents(100);
+			->setMeta($chargeMeta)
+			->setPriceCents($chargePriceCents)
+			->setShippingAddressStreet($chargeShippingAddressStreet)
+			->setShippingAddressNumber($chargeShippingAddressNumber)
+			->setShippingAddressNeighborhood($chargeShippingAddressNeighborhood)
+			->setShippingAddressZipCode($chargeShippingAddressZipCode)
+			->setShippingAddressCity($chargeShippingAddressCity)
+			->setShippingAddressState($chargeShippingAddressState)
+			->setShippingAddressCountry($chargeShippingAddressCountry);
 
 		(new \PHPBook\Payment\Transaction\Charge\Create)
 			->setCustomer($customer)
@@ -253,13 +275,7 @@ if ($customer) {
 	$identity = '01684848421';
 	$phone = '999999999999';
 	$phoneLocal = '47';
-	$addressStreet = 'Praça Gov. Irineu Bornhausen';
-	$addressNumber = '100';
-	$addressNeighborhood = 'Centro';
-	$addressZipCode = '88310000';
-	$addressCity = 'Itajaí';
-	$addressState = 'SC';
-	$addressCountry = 'Brasil';
+	$phoneCountry = '55';
 
 	$cardNumber = '000000000000';
 	$cardCvv = '123';
@@ -267,6 +283,16 @@ if ($customer) {
 	$cardMonth = '01';
 	$cardYear = '20';
 	
+	$chargeMeta = 'billing-10';
+	$chargePriceCents = 100;
+	$chargeShippingAddressStreet = 'Praça Gov. Irineu Bornhausen';
+	$chargeShippingAddressNumber = '100';
+	$chargeShippingAddressNeighborhood = 'Centro';
+	$chargeShippingAddressZipCode = '88310000';
+	$chargeShippingAddressCity = 'Itajaí';
+	$chargeShippingAddressState = 'SC';
+	$chargeShippingAddressCountry = 'BR';
+
 	$customer = (new \PHPBook\Payment\Customer)
 		->setToken(null) //gateway defines when create
 		->setName($name)
@@ -274,13 +300,7 @@ if ($customer) {
 		->setIdentity($identity)
 		->setPhone($phone)
 		->setPhoneLocal($phoneLocal)
-		->setAddressStreet($addressStreet)
-		->setAddressNumber($addressNumber)
-		->setAddressNeighborhood($addressNeighborhood)
-		->setAddressZipCode($addressZipCode)
-		->setAddressCity($addressCity)
-		->setAddressState($addressState)
-		->setAddressCountry($addressCountry);
+		->setPhoneCountry($phoneCountry);
 
 	(new \PHPBook\Payment\Transaction\Customer\Create)
 		->setCustomer($customer)
@@ -299,8 +319,15 @@ if ($customer) {
 
 			$charge = (new \PHPBook\Payment\Charge)
 				->setToken(null) //gateway defines when create
-				->setMeta('billing-10')
-				->setPriceCents(100);
+				->setMeta($chargeMeta)
+				->setPriceCents($chargePriceCents)
+				->setShippingAddressStreet($chargeShippingAddressStreet)
+				->setShippingAddressNumber($chargeShippingAddressNumber)
+				->setShippingAddressNeighborhood($chargeShippingAddressNeighborhood)
+				->setShippingAddressZipCode($chargeShippingAddressZipCode)
+				->setShippingAddressCity($chargeShippingAddressCity)
+				->setShippingAddressState($chargeShippingAddressState)
+				->setShippingAddressCountry($chargeShippingAddressCountry);
 						
 			(new \PHPBook\Payment\Transaction\Charge\Create)
 				->setCustomer($customer)
@@ -327,10 +354,15 @@ if ($customer) {
  * ***********************************************/
 
 	$charge->getToken();
-	
-	$charge->getPriceCents();
-
 	$charge->getMeta();
+	$charge->getPriceCents();
+	$charge->getShippingAddressStreet();
+	$charge->getShippingAddressNumber();
+	$charge->getShippingAddressNeighborhood();
+	$charge->getShippingAddressZipCode();
+	$charge->getShippingAddressCity();
+	$charge->getShippingAddressState();
+	$charge->getShippingAddressCountry();
 
 	switch($charge->getStatus()) {
 
